@@ -26,7 +26,8 @@ def main(data_folder):
         if settings['id_column'] not in df.columns:
             continue
 
-        new_line = {'subject_id': ic(df[settings['id_column']][0])}
+        new_line = {'subject_id': df[settings['id_column']][0]}
+        print(f'--- Processing file: {new_line["subject_id"]} ---', end='\r', flush=True)
         epm, epd = epoch_test(new_line, df, settings['time_column'])
         df = filter_dataframe(df, settings)
 
@@ -37,8 +38,6 @@ def main(data_folder):
         date_info = get_date_info(df, index)
         variables = get_variables(epm, df, index, settings)
 
-        #print(variables['transitions'])
-        
         calculate_variables(new_line, index, date_info, variables, epm, epd, settings)
         outgoing_df = pd.concat([pd.DataFrame(new_line, index=[0]), outgoing_df], ignore_index=True)
 
@@ -48,7 +47,7 @@ def main(data_folder):
 
     outgoing_df.to_csv(f'post process data {str(datetime.now().strftime("%d.%m.%Y %H.%M"))}.csv', index=False)
     end_time = time.time()
-    print(end_time - start_time)
+    print(f'--- Total run time: {end_time - start_time} sec ---')
 
 
 def epoch_test(new_line: dict, df: pd.DataFrame, time_column: str) -> tuple[int, int]:
@@ -144,9 +143,15 @@ def average_variables(new_line, var, index, wk_wknd, epm, epd, code_name, chosen
     temp = sum(var['ait'][day] for day in index.keys()) / wk_wknd['total']
     new_line[f'avg_ait'] = round(temp, 2)
 
-    temp = {code: [var['transitions'][day][code] for day in index.keys()] for code in [1, 6, 7, 8]}
-    for code, lists in temp.items():
-        new_line[f'avg_transition_to_{code_name[code]}'] = round(sum(lists) / wk_wknd['total'], 2)
+    temp = {}
+    for outer_key, inner_dict in var["transitions"].items():
+        for second_tier_key, inner_values in inner_dict.items():
+            for inner_key, value in inner_values.items():
+                temp.setdefault(second_tier_key, {}).setdefault(inner_key, []).append(value)
+    
+    for t_code, dic in temp.items():
+        for f_code, val in dic.items():
+            new_line[f'avg_tran_{code_name[f_code]}_to_{code_name[t_code]}'] = round(sum(val) / wk_wknd['total'], 2)
 
     temp = {code: [var['bout'][day][code] for day in index.keys()] for code in bout_codes}
     for code, lists in temp.items():
@@ -173,8 +178,10 @@ def daily_variables(new_line, var, date_info, code_name):
             new_line[f'day{day}_{code_name[code]}'] = values
 
         new_line[f'day{day}_ait'] = var['ait'][day]
-        for code, value in var['transitions'][day].items():
-            new_line[f'day{day}_transition_to_{code_name[code]}'] = value
+        
+        for t_code, dic in var['transitions'][day].items():
+            for f_code, value in dic.items():
+                new_line[f'day{day}_tran_{code_name[f_code]}_to_{code_name[t_code]}'] = value
 
         for code, values in var['bout'][day].items():
             for nr, val in enumerate(values):
