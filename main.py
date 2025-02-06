@@ -6,35 +6,39 @@ from icecream import ic
 import time
 from itertools import groupby
 from operator import itemgetter
+import argparse
 
-import utils.processing_settings
-import utils.filter as fi
-import utils.activity
-import utils.transition
-import utils.bout
+from utils.processing_settings import get_settings
+from utils.df_filter import filter_dataframe, filter_days
+from utils.activity import get_activities
+from utils.transition import get_ait, get_transitions, calc_trans
+from utils.bout import get_bouts
 
 start_time = time.time()
 
 
-def main():
+def main(data_folder):
     outgoing_df = pd.DataFrame()
-    settings, data_path = processing_settings.get_settings()
+    settings, data_path = get_settings()
 
-    for csvfile in glob.glob(data_path + '*.csv'):
+    for csvfile in glob.glob(data_folder + '*.csv'):
         df = pd.read_csv(csvfile)
         if settings['id_column'] not in df.columns:
             continue
 
         new_line = {'subject_id': ic(df[settings['id_column']][0])}
         epm, epd = epoch_test(new_line, df, settings['time_column'])
-        df = fi.filter_dataframe(df, settings)
+        df = filter_dataframe(df, settings)
 
         index = get_index(df, settings['time_column'])
-        fi.filter_days(df, index, settings, epd)
+        filter_days(df, index, settings, epd)
         index = shift_index_keys(index)
 
         date_info = get_date_info(df, index)
         variables = get_variables(epm, df, index, settings)
+
+        #print(variables['transitions'])
+        
         calculate_variables(new_line, index, date_info, variables, epm, epd, settings)
         outgoing_df = pd.concat([pd.DataFrame(new_line, index=[0]), outgoing_df], ignore_index=True)
 
@@ -86,15 +90,15 @@ def get_date_info(df, index):
 
 
 def get_variables(epm, df, index, settings) -> dict:
-    variables = {'ai': activity.get_activities(df, index, settings['ai_codes'], settings['ai_column']),
+    variables = {'ai': get_activities(df, index, settings['ai_codes'], settings['ai_column']),
 
-                 'act': activity.get_activities(df, index, settings['act_codes'], settings['act_column']),
+                 'act': get_activities(df, index, settings['act_codes'], settings['act_column']),
 
-                 'ait': transition.get_ait(df, index),
+                 'ait': get_ait(df, index),
 
-                 'transitions': transition.get_transitions(df, index),
+                 'transitions': get_transitions(df, index),
 
-                 'bout': bout.get_bouts(df, index, epm, settings)}
+                 'bout': get_bouts(df, index, epm, settings)}
 
     return variables
 
@@ -178,4 +182,9 @@ def daily_variables(new_line, var, date_info, code_name):
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data-folder', type=str, dest='data_folder', help='Path of dataset folder')
+    args = parser.parse_args()
+    if not args.data_folder:
+        args.data_folder = os.path.join(os.getcwd(), 'data/')    
+    main(args.data_folder)

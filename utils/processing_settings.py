@@ -1,5 +1,5 @@
 def get_settings():
-    settings = {'id_column': 'PID',
+    settings = {'id_column': 'SID',
                 'time_column': 'timestamp',
                 'ai_column': 'ai_column',
                 'act_column': 'label',
