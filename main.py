@@ -9,7 +9,6 @@ from operator import itemgetter
 import argparse
 import yaml
 
-from utils.processing_settings import get_settings
 from utils.df_filter import filter_dataframe, filter_days
 from utils.activity import get_activities
 from utils.transition import get_ait, get_transitions, calc_trans
