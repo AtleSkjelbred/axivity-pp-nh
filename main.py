@@ -7,6 +7,7 @@ import time
 from itertools import groupby
 from operator import itemgetter
 import argparse
+import yaml
 
 from utils.processing_settings import get_settings
 from utils.df_filter import filter_dataframe, filter_days
@@ -17,28 +18,28 @@ from utils.bout import get_bouts
 start_time = time.time()
 
 
-def main(data_folder):
+def main(data_folder, config):
     outgoing_df = pd.DataFrame()
     settings, data_path = get_settings()
 
     for csvfile in glob.glob(data_folder + '*.csv'):
         df = pd.read_csv(csvfile)
-        if settings['id_column'] not in df.columns:
+        if config['id_column'] not in df.columns:
             continue
 
-        new_line = {'subject_id': df[settings['id_column']][0]}
+        new_line = {'subject_id': df[config['id_column']][0]}
         print(f'--- Processing file: {new_line["subject_id"]} ---', end='\r', flush=True)
-        epm, epd = epoch_test(new_line, df, settings['time_column'])
-        df = filter_dataframe(df, settings)
+        epm, epd = epoch_test(new_line, df, config['time_column'])
+        df = filter_dataframe(df, config)
 
-        index = get_index(df, settings['time_column'])
-        filter_days(df, index, settings, epd)
+        index = get_index(df, config['time_column'])
+        filter_days(df, index, config, epd)
         index = shift_index_keys(index)
 
         date_info = get_date_info(df, index)
-        variables = get_variables(epm, df, index, settings)
+        variables = get_variables(epm, df, index, config)
 
-        calculate_variables(new_line, index, date_info, variables, epm, epd, settings)
+        calculate_variables(new_line, index, date_info, variables, epm, epd, config)
         outgoing_df = pd.concat([pd.DataFrame(new_line, index=[0]), outgoing_df], ignore_index=True)
 
     if not os.path.exists(os.path.join(data_path, 'post processing')):
@@ -178,7 +179,8 @@ def daily_variables(new_line, var, date_info, code_name):
             new_line[f'day{day}_{code_name[code]}'] = values
 
         new_line[f'day{day}_ait'] = var['ait'][day]
-        
+
+        variables - transitions - day - code - verdier
         for t_code, dic in var['transitions'][day].items():
             for f_code, value in dic.items():
                 new_line[f'day{day}_tran_{code_name[f_code]}_to_{code_name[t_code]}'] = value
@@ -193,5 +195,15 @@ if __name__ == '__main__':
     parser.add_argument('--data-folder', type=str, dest='data_folder', help='Path of dataset folder')
     args = parser.parse_args()
     if not args.data_folder:
-        args.data_folder = os.path.join(os.getcwd(), 'data/')    
-    main(args.data_folder)
+        if not os.path.exists(os.path.join(os.getcwd(), 'data/')):
+            os.makedirs(os.path.join(os.getcwd(), 'data/'))      
+        args.data_folder = os.path.join(os.getcwd(), 'data/')
+    else:
+        args.data_folder = os.path.join(args.data_folder)
+
+    with open('config.yaml') as f:
+        config = yaml.safe_load(f)
+
+    print(args.data_folder)
+    
+    main(args.data_folder, config)
