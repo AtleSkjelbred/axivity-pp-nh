@@ -20,9 +20,11 @@ start_time = time.time()
 
 def main(data_folder, config):
     outgoing_df = pd.DataFrame()
-    settings, data_path = get_settings()
+    data_path = os.getcwd()
 
+    print(data_folder)
     for csvfile in glob.glob(data_folder + '*.csv'):
+        print(csvfile)
         df = pd.read_csv(csvfile)
         if config['id_column'] not in df.columns:
             continue
@@ -42,9 +44,9 @@ def main(data_folder, config):
         calculate_variables(new_line, index, date_info, variables, epm, epd, config)
         outgoing_df = pd.concat([pd.DataFrame(new_line, index=[0]), outgoing_df], ignore_index=True)
 
-    if not os.path.exists(os.path.join(data_path, 'post processing')):
-        os.makedirs(os.path.join(data_path, 'post processing'))
-    os.chdir(os.path.join(data_path, 'post processing'))
+    if not os.path.exists(os.path.join(data_path, 'results')):
+        os.makedirs(os.path.join(data_path, 'results'))
+    os.chdir(os.path.join(data_path, 'results'))
 
     outgoing_df.to_csv(f'post process data {str(datetime.now().strftime("%d.%m.%Y %H.%M"))}.csv', index=False)
     end_time = time.time()
@@ -89,26 +91,26 @@ def get_date_info(df, index):
     return info
 
 
-def get_variables(epm, df, index, settings) -> dict:
-    variables = {'ai': get_activities(df, index, settings['ai_codes'], settings['ai_column']),
+def get_variables(epm, df, index, config) -> dict:
+    variables = {'ai': get_activities(df, index, config['ai_codes'], config['ai_column']),
 
-                 'act': get_activities(df, index, settings['act_codes'], settings['act_column']),
+                 'act': get_activities(df, index, config['act_codes'], config['act_column']),
 
                  'ait': get_ait(df, index),
 
                  'transitions': get_transitions(df, index),
 
-                 'bout': get_bouts(df, index, epm, settings)}
+                 'bout': get_bouts(df, index, epm, config)}
 
     return variables
 
 
-def calculate_variables(new_line, index, date_info, variables, epm, epd, settings):
+def calculate_variables(new_line, index, date_info, variables, epm, epd, config):
     temp = {'ai': ['ai_codes', 'ai_column'], 'act': ['act_codes', 'act_column'], 'walk': ['walk_codes', 'walk_column']}
-    chosen_var = {key: {'codes': settings[codes], 'column': settings[column]}
+    chosen_var = {key: {'codes': config[codes], 'column': config[column]}
                   for key, (codes, column) in temp.items() if key in variables}
-    code_name = settings['code_name']
-    bout_codes = settings['bout_codes']
+    code_name = config['code_name']
+    bout_codes = config['bout_codes']
 
     wk_wknd = weekday_distribution(new_line, index, date_info, epm)
     if wk_wknd['total'] == 0:
@@ -180,7 +182,6 @@ def daily_variables(new_line, var, date_info, code_name):
 
         new_line[f'day{day}_ait'] = var['ait'][day]
 
-        variables - transitions - day - code - verdier
         for t_code, dic in var['transitions'][day].items():
             for f_code, value in dic.items():
                 new_line[f'day{day}_tran_{code_name[f_code]}_to_{code_name[t_code]}'] = value
@@ -198,12 +199,8 @@ if __name__ == '__main__':
         if not os.path.exists(os.path.join(os.getcwd(), 'data/')):
             os.makedirs(os.path.join(os.getcwd(), 'data/'))      
         args.data_folder = os.path.join(os.getcwd(), 'data/')
-    else:
-        args.data_folder = os.path.join(args.data_folder)
 
     with open('config.yaml') as f:
         config = yaml.safe_load(f)
-
-    print(args.data_folder)
     
     main(args.data_folder, config)
