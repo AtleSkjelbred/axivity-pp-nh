@@ -20,9 +20,7 @@ def main(data_folder, config):
     outgoing_df = pd.DataFrame()
     data_path = os.getcwd()
 
-    print(data_folder)
     for csvfile in glob.glob(data_folder + '*.csv'):
-        print(csvfile)
         df = pd.read_csv(csvfile)
         if config['id_column'] not in df.columns:
             continue
